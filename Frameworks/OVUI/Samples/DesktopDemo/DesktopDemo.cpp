@@ -6,6 +6,10 @@
 #include <Designer/ThemeEditor.h>
 #include <Graphics/RenderBackend.h>
 
+#ifdef OVUI_HAS_VULKAN
+#include <Graphics/Vulkan/VulkanBackend.h>
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 #include <thread>
@@ -101,6 +105,8 @@ int main(int argc, char** argv) {
 
     if (use_vulkan) {
 #ifdef OVUI_HAS_VULKAN
+        register_vulkan_backend();
+
         Renderer renderer;
         auto vk_be = RenderBackendRegistry::instance().create("vulkan");
         if (vk_be) {

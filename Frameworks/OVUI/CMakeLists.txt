@@ -83,10 +83,13 @@ if(NOT Vulkan_FOUND)
     find_path(VULKAN_INCLUDE_DIR vulkan/vulkan.h)
     if(VULKAN_LIB AND VULKAN_INCLUDE_DIR)
         set(OVUI_HAS_VULKAN ON)
+        set(Vulkan_LIBRARY ${VULKAN_LIB})
+        set(Vulkan_INCLUDE_DIR ${VULKAN_INCLUDE_DIR})
         message(STATUS "OVUI: Vulkan found (manual) — enabling Vulkan render backend")
     endif()
 else()
     set(OVUI_HAS_VULKAN ON)
+    set(VULKAN_INCLUDE_DIR ${Vulkan_INCLUDE_DIR})
     message(STATUS "OVUI: Vulkan found (cmake module) — enabling Vulkan render backend")
 endif()
 
@@ -105,14 +108,14 @@ if(OVUI_HAS_VULKAN)
         Graphics/Vulkan/VulkanBackend.h
         Graphics/Vulkan/VulkanBackend.cpp
     )
-    target_compile_definitions(ovui_graphics PRIVATE OVUI_HAS_VULKAN=1 VK_USE_PLATFORM_XCB_KHR)
+    target_compile_definitions(ovui_graphics PUBLIC OVUI_HAS_VULKAN=1 VK_USE_PLATFORM_XCB_KHR)
 endif()
 
 target_include_directories(ovui_graphics PUBLIC ${OVUI_ROOT} ${FREETYPE_INCLUDE_DIRS} ${HARFBUZZ_INCLUDE_DIRS})
 target_link_libraries(ovui_graphics PUBLIC ovui_widgets ${FREETYPE_LIBRARIES} ${HARFBUZZ_LIBRARIES})
 if(OVUI_HAS_VULKAN)
-    target_include_directories(ovui_graphics PRIVATE ${VULKAN_INCLUDE_DIR})
-    target_link_libraries(ovui_graphics PRIVATE ${VULKAN_LIB} xcb)
+    target_include_directories(ovui_graphics PUBLIC ${VULKAN_INCLUDE_DIR})
+    target_link_libraries(ovui_graphics PUBLIC ${Vulkan_LIBRARY} xcb)
 endif()
 
 # ============================================================
