@@ -64,6 +64,7 @@ private:
     std::vector<VkImageView> m_swapchain_views;
 
     VkRenderPass m_render_pass = VK_NULL_HANDLE;
+    std::vector<VkFramebuffer> m_framebuffers;
     VkPipelineLayout m_pipeline_layout = VK_NULL_HANDLE;
     VkPipeline m_pipeline = VK_NULL_HANDLE;
 
@@ -101,8 +102,8 @@ private:
     bool create_logical_device();
     bool create_swapchain();
     bool create_render_pass();
-    bool create_pipeline();
     bool create_framebuffers();
+    bool create_pipeline();
     bool create_command_pool();
     bool create_sync_objects();
     bool create_vertex_buffers();

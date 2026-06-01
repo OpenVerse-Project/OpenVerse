@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <vector>
 #include <set>
+#include <cassert>
 
 namespace ovui {
 
@@ -31,44 +32,61 @@ static void destroy_debug_messenger(VkInstance inst, VkDebugUtilsMessengerEXT ms
     if (fn) fn(inst, msgr, nullptr);
 }
 
-VulkanRenderBackend::VulkanRenderBackend() {}
+VulkanRenderBackend::VulkanRenderBackend() { memset(m_frames, 0, sizeof(m_frames)); }
 VulkanRenderBackend::~VulkanRenderBackend() { shutdown(); }
 
 bool VulkanRenderBackend::initialize(void*) {
-    return create_instance() && create_surface() && pick_physical_device() &&
-           create_logical_device() && create_swapchain() && create_render_pass() &&
-           create_pipeline() && create_command_pool() && create_vertex_buffers() &&
-           create_sync_objects() && allocate_command_buffers();
+    if (!create_instance()) return false;
+    if (!create_surface()) return false;
+    if (!pick_physical_device()) return false;
+    if (!create_logical_device()) return false;
+    if (!create_swapchain()) return false;
+    if (!create_render_pass()) return false;
+    if (!create_framebuffers()) return false;
+    if (!create_pipeline()) return false;
+    if (!create_command_pool()) return false;
+    if (!create_vertex_buffers()) return false;
+    if (!create_sync_objects()) return false;
+    if (!allocate_command_buffers()) return false;
+    m_running = true;
+    return true;
 }
 
 void VulkanRenderBackend::shutdown() {
+    if (!m_dev) return;
+
     if (m_dev) vkDeviceWaitIdle(m_dev);
 
     for (auto& f : m_frames) {
-        if (f.fence) vkDestroyFence(m_dev, f.fence, nullptr);
-        if (f.image_available) vkDestroySemaphore(m_dev, f.image_available, nullptr);
-        if (f.render_finished) vkDestroySemaphore(m_dev, f.render_finished, nullptr);
-        if (f.vbuf) vkDestroyBuffer(m_dev, f.vbuf, nullptr);
-        if (f.ibuf) vkDestroyBuffer(m_dev, f.ibuf, nullptr);
-        if (f.vbuf_mem) vkFreeMemory(m_dev, f.vbuf_mem, nullptr);
-        if (f.ibuf_mem) vkFreeMemory(m_dev, f.ibuf_mem, nullptr);
+        if (f.fence) { vkDestroyFence(m_dev, f.fence, nullptr); f.fence = VK_NULL_HANDLE; }
+        if (f.image_available) { vkDestroySemaphore(m_dev, f.image_available, nullptr); f.image_available = VK_NULL_HANDLE; }
+        if (f.render_finished) { vkDestroySemaphore(m_dev, f.render_finished, nullptr); f.render_finished = VK_NULL_HANDLE; }
+        if (f.vbuf) { vkDestroyBuffer(m_dev, f.vbuf, nullptr); f.vbuf = VK_NULL_HANDLE; }
+        if (f.ibuf) { vkDestroyBuffer(m_dev, f.ibuf, nullptr); f.ibuf = VK_NULL_HANDLE; }
+        if (f.vbuf_mem) { vkFreeMemory(m_dev, f.vbuf_mem, nullptr); f.vbuf_mem = VK_NULL_HANDLE; }
+        if (f.ibuf_mem) { vkFreeMemory(m_dev, f.ibuf_mem, nullptr); f.ibuf_mem = VK_NULL_HANDLE; }
     }
 
     cleanup_swapchain();
 
-    if (m_pipeline) vkDestroyPipeline(m_dev, m_pipeline, nullptr);
-    if (m_pipeline_layout) vkDestroyPipelineLayout(m_dev, m_pipeline_layout, nullptr);
-    if (m_render_pass) vkDestroyRenderPass(m_dev, m_render_pass, nullptr);
-    if (m_cmd_pool) vkDestroyCommandPool(m_dev, m_cmd_pool, nullptr);
+    if (m_pipeline) { vkDestroyPipeline(m_dev, m_pipeline, nullptr); m_pipeline = VK_NULL_HANDLE; }
+    if (m_pipeline_layout) { vkDestroyPipelineLayout(m_dev, m_pipeline_layout, nullptr); m_pipeline_layout = VK_NULL_HANDLE; }
+    if (m_render_pass) { vkDestroyRenderPass(m_dev, m_render_pass, nullptr); m_render_pass = VK_NULL_HANDLE; }
+    if (m_cmd_pool) { vkDestroyCommandPool(m_dev, m_cmd_pool, nullptr); m_cmd_pool = VK_NULL_HANDLE; }
 
-    if (m_dev) vkDestroyDevice(m_dev, nullptr);
-    if (m_surface) vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-    if (m_debug_messenger) destroy_debug_messenger(m_instance, m_debug_messenger);
-    if (m_instance) vkDestroyInstance(m_instance, nullptr);
+    vkDestroyDevice(m_dev, nullptr);
+    m_dev = VK_NULL_HANDLE;
+    m_phys_dev = VK_NULL_HANDLE;
+
+    if (m_surface) { vkDestroySurfaceKHR(m_instance, m_surface, nullptr); m_surface = VK_NULL_HANDLE; }
+    if (m_debug_messenger) { destroy_debug_messenger(m_instance, m_debug_messenger); m_debug_messenger = VK_NULL_HANDLE; }
+    if (m_instance) { vkDestroyInstance(m_instance, nullptr); m_instance = VK_NULL_HANDLE; }
 
     if (m_conn && m_window) {
         xcb_destroy_window(m_conn, m_window);
         xcb_disconnect(m_conn);
+        m_conn = nullptr;
+        m_window = 0;
     }
     m_running = false;
 }
@@ -85,13 +103,9 @@ bool VulkanRenderBackend::create_instance() {
     ai.engineVersion = VK_MAKE_VERSION(2,7,0);
     ai.apiVersion = VK_API_VERSION_1_2;
 
-    std::vector<const char*> exts = {VK_KHR_SURFACE_EXTENSION_NAME};
-#if defined(VK_USE_PLATFORM_XCB_KHR)
-    exts.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#endif
-    if (m_config.enable_validation) {
+    std::vector<const char*> exts = {VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME};
+    if (m_config.enable_validation)
         exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
 
     VkInstanceCreateInfo ci{};
     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -193,7 +207,6 @@ bool VulkanRenderBackend::create_logical_device() {
     }
 
     std::vector<const char*> dev_exts = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
     VkPhysicalDeviceFeatures feats{};
 
     VkDeviceCreateInfo dci{};
@@ -221,11 +234,12 @@ bool VulkanRenderBackend::create_swapchain() {
     m_swapchain_format = formats[0].format;
 
     m_swapchain_extent = caps.currentExtent;
-    if (m_swapchain_extent.width == UINT32_MAX) {
+    if (m_swapchain_extent.width == UINT32_MAX)
         m_swapchain_extent = {(uint32_t)m_w, (uint32_t)m_h};
-    }
 
-    uint32_t img_count = std::max(2u, std::min(caps.minImageCount + 1, caps.maxImageCount ? caps.maxImageCount : 3));
+    uint32_t img_count = std::max(caps.minImageCount, 2u);
+    if (caps.maxImageCount > 0)
+        img_count = std::min(img_count, caps.maxImageCount);
 
     VkSwapchainCreateInfoKHR sci{};
     sci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -271,17 +285,41 @@ bool VulkanRenderBackend::create_swapchain() {
     return true;
 }
 
+bool VulkanRenderBackend::create_framebuffers() {
+    m_framebuffers.resize(m_swapchain_views.size(), VK_NULL_HANDLE);
+    for (size_t i = 0; i < m_swapchain_views.size(); i++) {
+        VkImageView attachments[] = {m_swapchain_views[i]};
+        VkFramebufferCreateInfo fci{};
+        fci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fci.renderPass = m_render_pass;
+        fci.attachmentCount = 1;
+        fci.pAttachments = attachments;
+        fci.width = m_swapchain_extent.width;
+        fci.height = m_swapchain_extent.height;
+        fci.layers = 1;
+        if (vkCreateFramebuffer(m_dev, &fci, nullptr, &m_framebuffers[i]) != VK_SUCCESS)
+            return false;
+    }
+    return true;
+}
+
 void VulkanRenderBackend::cleanup_swapchain() {
-    for (auto& v : m_swapchain_views) if (v) vkDestroyImageView(m_dev, v, nullptr);
+    for (auto& fb : m_framebuffers)
+        if (fb) { vkDestroyFramebuffer(m_dev, fb, nullptr); fb = VK_NULL_HANDLE; }
+    m_framebuffers.clear();
+    for (auto& v : m_swapchain_views)
+        if (v) { vkDestroyImageView(m_dev, v, nullptr); v = VK_NULL_HANDLE; }
     m_swapchain_views.clear();
-    if (m_swapchain) vkDestroySwapchainKHR(m_dev, m_swapchain, nullptr);
-    m_swapchain = VK_NULL_HANDLE;
+    m_swapchain_images.clear();
+    if (m_swapchain) { vkDestroySwapchainKHR(m_dev, m_swapchain, nullptr); m_swapchain = VK_NULL_HANDLE; }
 }
 
 void VulkanRenderBackend::recreate_swapchain() {
+    if (!m_dev) return;
     vkDeviceWaitIdle(m_dev);
     cleanup_swapchain();
     create_swapchain();
+    create_framebuffers();
 }
 
 bool VulkanRenderBackend::create_render_pass() {
@@ -328,19 +366,12 @@ bool VulkanRenderBackend::create_pipeline() {
 
     VkPipelineShaderStageCreateInfo vs{}, fs{};
     vs.sType = fs.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vs.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vs.module = vert_mod;
-    vs.pName = "main";
-    fs.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fs.module = frag_mod;
-    fs.pName = "main";
-
+    vs.stage = VK_SHADER_STAGE_VERTEX_BIT; vs.module = vert_mod; vs.pName = "main";
+    fs.stage = VK_SHADER_STAGE_FRAGMENT_BIT; fs.module = frag_mod; fs.pName = "main";
     VkPipelineShaderStageCreateInfo stages[] = {vs, fs};
 
     VkVertexInputBindingDescription bind{};
-    bind.binding = 0;
-    bind.stride = 28;
-    bind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    bind.binding = 0; bind.stride = 28; bind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
     VkVertexInputAttributeDescription attrs[2]{};
     attrs[0].location = 0; attrs[0].binding = 0; attrs[0].format = VK_FORMAT_R32G32_SFLOAT; attrs[0].offset = 0;
@@ -348,10 +379,8 @@ bool VulkanRenderBackend::create_pipeline() {
 
     VkPipelineVertexInputStateCreateInfo vis{};
     vis.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vis.vertexBindingDescriptionCount = 1;
-    vis.pVertexBindingDescriptions = &bind;
-    vis.vertexAttributeDescriptionCount = 2;
-    vis.pVertexAttributeDescriptions = attrs;
+    vis.vertexBindingDescriptionCount = 1; vis.pVertexBindingDescriptions = &bind;
+    vis.vertexAttributeDescriptionCount = 2; vis.pVertexAttributeDescriptions = attrs;
 
     VkPipelineInputAssemblyStateCreateInfo ias{};
     ias.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -367,8 +396,7 @@ bool VulkanRenderBackend::create_pipeline() {
 
     VkPipelineRasterizationStateCreateInfo rs{};
     rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rs.lineWidth = 1.0f;
-    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.lineWidth = 1.0f; rs.cullMode = VK_CULL_MODE_NONE;
 
     VkPipelineMultisampleStateCreateInfo ms{};
     ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -387,32 +415,25 @@ bool VulkanRenderBackend::create_pipeline() {
 
     VkPipelineColorBlendStateCreateInfo cbs{};
     cbs.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    cbs.attachmentCount = 1;
-    cbs.pAttachments = &cba;
+    cbs.attachmentCount = 1; cbs.pAttachments = &cba;
 
     VkPushConstantRange pcr{VK_SHADER_STAGE_VERTEX_BIT, 0, 8};
 
     VkPipelineLayoutCreateInfo plci{};
     plci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    plci.pushConstantRangeCount = 1;
-    plci.pPushConstantRanges = &pcr;
+    plci.pushConstantRangeCount = 1; plci.pPushConstantRanges = &pcr;
     vkCreatePipelineLayout(m_dev, &plci, nullptr, &m_pipeline_layout);
 
     VkGraphicsPipelineCreateInfo pci{};
     pci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pci.stageCount = 2; pci.pStages = stages;
-    pci.pVertexInputState = &vis;
-    pci.pInputAssemblyState = &ias;
-    pci.pViewportState = &vps;
-    pci.pRasterizationState = &rs;
-    pci.pMultisampleState = &ms;
-    pci.pColorBlendState = &cbs;
-    pci.layout = m_pipeline_layout;
-    pci.renderPass = m_render_pass;
+    pci.pVertexInputState = &vis; pci.pInputAssemblyState = &ias;
+    pci.pViewportState = &vps; pci.pRasterizationState = &rs;
+    pci.pMultisampleState = &ms; pci.pColorBlendState = &cbs;
+    pci.layout = m_pipeline_layout; pci.renderPass = m_render_pass;
     pci.subpass = 0;
 
     VkResult res = vkCreateGraphicsPipelines(m_dev, VK_NULL_HANDLE, 1, &pci, nullptr, &m_pipeline);
-
     vkDestroyShaderModule(m_dev, vert_mod, nullptr);
     vkDestroyShaderModule(m_dev, frag_mod, nullptr);
     return res == VK_SUCCESS;
@@ -450,9 +471,7 @@ void VulkanRenderBackend::create_buffer(VkDeviceSize size, VkBufferUsageFlags us
                                          VkMemoryPropertyFlags props, VkBuffer& buf, VkDeviceMemory& mem) {
     VkBufferCreateInfo bci{};
     bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bci.size = size;
-    bci.usage = usage;
-    bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    bci.size = size; bci.usage = usage; bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     vkCreateBuffer(m_dev, &bci, nullptr, &buf);
 
     VkMemoryRequirements mr;
@@ -476,8 +495,7 @@ bool VulkanRenderBackend::create_vertex_buffers() {
         create_buffer(icap, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                       f.ibuf, f.ibuf_mem);
-        f.vbuf_capacity = vcap;
-        f.ibuf_capacity = icap;
+        f.vbuf_capacity = vcap; f.ibuf_capacity = icap;
         vkMapMemory(m_dev, f.vbuf_mem, 0, vcap, 0, &f.vbuf_ptr);
         vkMapMemory(m_dev, f.ibuf_mem, 0, icap, 0, &f.ibuf_ptr);
     }
@@ -503,12 +521,10 @@ void VulkanRenderBackend::emit_quad(std::vector<float>& verts, std::vector<uint1
                                      float x, float y, float w, float h, Color c) {
     uint16_t base = (uint16_t)(verts.size() / 7);
     float rgba[4] = {c.r, c.g, c.b, c.a};
-
     verts.insert(verts.end(), {x, y, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
     verts.insert(verts.end(), {x + w, y, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
     verts.insert(verts.end(), {x + w, y + h, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
     verts.insert(verts.end(), {x, y + h, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
-
     indices.insert(indices.end(), {
         base, (uint16_t)(base + 1), (uint16_t)(base + 2),
         base, (uint16_t)(base + 2), (uint16_t)(base + 3)
@@ -522,11 +538,10 @@ void VulkanRenderBackend::tessellate_rect(std::vector<float>& verts, std::vector
 
 void VulkanRenderBackend::tessellate_border(std::vector<float>& verts, std::vector<uint16_t>& indices,
                                              float x, float y, float w, float h, Color c, float bw, float) {
-    float bw2 = bw;
-    emit_quad(verts, indices, x, y, w, bw2, c);
-    emit_quad(verts, indices, x, y + h - bw2, w, bw2, c);
-    emit_quad(verts, indices, x, y + bw2, bw2, h - bw2 * 2, c);
-    emit_quad(verts, indices, x + w - bw2, y + bw2, bw2, h - bw2 * 2, c);
+    emit_quad(verts, indices, x, y, w, bw, c);
+    emit_quad(verts, indices, x, y + h - bw, w, bw, c);
+    emit_quad(verts, indices, x, y + bw, bw, h - bw * 2, c);
+    emit_quad(verts, indices, x + w - bw, y + bw, bw, h - bw * 2, c);
 }
 
 void VulkanRenderBackend::tessellate_circle(std::vector<float>& verts, std::vector<uint16_t>& indices,
@@ -534,19 +549,13 @@ void VulkanRenderBackend::tessellate_circle(std::vector<float>& verts, std::vect
     float rgba[4] = {c.r, c.g, c.b, c.a};
     uint16_t center = (uint16_t)(verts.size() / 7);
     verts.insert(verts.end(), {cx, cy, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
-
     for (int i = 0; i <= segments; i++) {
         float angle = 2.0f * 3.14159265f * i / segments;
-        float px = cx + cosf(angle) * r;
-        float py = cy + sinf(angle) * r;
-        verts.insert(verts.end(), {px, py, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
+        verts.insert(verts.end(), {cx + cosf(angle) * r, cy + sinf(angle) * r,
+                                   rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
     }
-
-    for (int i = 0; i < segments; i++) {
-        indices.insert(indices.end(), {
-            center, (uint16_t)(center + i + 1), (uint16_t)(center + i + 2)
-        });
-    }
+    for (int i = 0; i < segments; i++)
+        indices.insert(indices.end(), {center, (uint16_t)(center + i + 1), (uint16_t)(center + i + 2)});
 }
 
 void VulkanRenderBackend::tessellate_line(std::vector<float>& verts, std::vector<uint16_t>& indices,
@@ -556,15 +565,12 @@ void VulkanRenderBackend::tessellate_line(std::vector<float>& verts, std::vector
     if (len < 0.001f) return;
     float nx = -dy / len * width * 0.5f;
     float ny = dx / len * width * 0.5f;
-
     float rgba[4] = {c.r, c.g, c.b, c.a};
     uint16_t base = (uint16_t)(verts.size() / 7);
-
     verts.insert(verts.end(), {x0 + nx, y0 + ny, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
     verts.insert(verts.end(), {x0 - nx, y0 - ny, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
     verts.insert(verts.end(), {x1 - nx, y1 - ny, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
     verts.insert(verts.end(), {x1 + nx, y1 + ny, rgba[0], rgba[1], rgba[2], rgba[3], 0.0f});
-
     indices.insert(indices.end(), {
         base, (uint16_t)(base + 1), (uint16_t)(base + 2),
         base, (uint16_t)(base + 2), (uint16_t)(base + 3)
@@ -574,11 +580,9 @@ void VulkanRenderBackend::tessellate_line(std::vector<float>& verts, std::vector
 void VulkanRenderBackend::tessellate_text(std::vector<float>& verts, std::vector<uint16_t>& indices,
                                            const std::string& text, float x, float y, Color c, float size) {
     if (text.empty()) return;
-    float char_w = size * 0.6f;
-    float char_h = size;
-    for (size_t ci = 0; ci < text.size(); ci++) {
+    float char_w = size * 0.6f, char_h = size;
+    for (size_t ci = 0; ci < text.size(); ci++)
         emit_quad(verts, indices, x + ci * char_w, y, char_w - 1, char_h, c);
-    }
 }
 
 void VulkanRenderBackend::begin_frame() {
@@ -594,11 +598,8 @@ void VulkanRenderBackend::execute_commands(const std::vector<RenderDrawCmd>& cmd
     std::vector<uint16_t> indices;
 
     for (auto& cmd : cmds) {
-        int x = static_cast<int>(cmd.frame.x);
-        int y = static_cast<int>(cmd.frame.y);
-        int w = static_cast<int>(cmd.frame.width);
-        int h = static_cast<int>(cmd.frame.height);
-
+        int x = static_cast<int>(cmd.frame.x), y = static_cast<int>(cmd.frame.y);
+        int w = static_cast<int>(cmd.frame.width), h = static_cast<int>(cmd.frame.height);
         switch (cmd.type) {
             case RenderDrawCmd::RectCmd:
                 tessellate_rect(verts, indices, (float)x, (float)y, (float)std::max(w, 1), (float)std::max(h, 1), cmd.color, cmd.radius_or_size);
@@ -609,13 +610,9 @@ void VulkanRenderBackend::execute_commands(const std::vector<RenderDrawCmd>& cmd
             case RenderDrawCmd::BorderCmd:
                 tessellate_border(verts, indices, (float)x, (float)y, (float)std::max(w, 1), (float)std::max(h, 1), cmd.color, cmd.border_width, cmd.radius_or_size);
                 break;
-            case RenderDrawCmd::CircleCmd: {
-                float cx = (float)x + (float)w * 0.5f;
-                float cy = (float)y + (float)h * 0.5f;
-                float r = (float)w * 0.5f;
-                tessellate_circle(verts, indices, cx, cy, r, cmd.color);
+            case RenderDrawCmd::CircleCmd:
+                tessellate_circle(verts, indices, (float)x + (float)w * 0.5f, (float)y + (float)h * 0.5f, (float)w * 0.5f, cmd.color);
                 break;
-            }
             case RenderDrawCmd::LineCmd:
                 tessellate_line(verts, indices, cmd.p1.x, cmd.p1.y, cmd.p2.x, cmd.p2.y, cmd.color, cmd.border_width);
                 break;
@@ -641,8 +638,7 @@ void VulkanRenderBackend::execute_commands(const std::vector<RenderDrawCmd>& cmd
         create_buffer(new_icap, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                       f.ibuf, f.ibuf_mem);
-        f.vbuf_capacity = new_vcap;
-        f.ibuf_capacity = new_icap;
+        f.vbuf_capacity = new_vcap; f.ibuf_capacity = new_icap;
         vkMapMemory(m_dev, f.vbuf_mem, 0, new_vcap, 0, &f.vbuf_ptr);
         vkMapMemory(m_dev, f.ibuf_mem, 0, new_icap, 0, &f.ibuf_ptr);
     }
@@ -658,9 +654,12 @@ void VulkanRenderBackend::execute_commands(const std::vector<RenderDrawCmd>& cmd
 void VulkanRenderBackend::end_frame() {
     auto& f = m_frames[m_frame_idx];
 
-    uint32_t image_idx;
+    uint32_t image_idx = 0;
     VkResult res = vkAcquireNextImageKHR(m_dev, m_swapchain, UINT64_MAX, f.image_available, VK_NULL_HANDLE, &image_idx);
-    if (res == VK_ERROR_OUT_OF_DATE_KHR) { recreate_swapchain(); return; }
+    if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) { recreate_swapchain(); return; }
+    if (res != VK_SUCCESS) return;
+
+    if (image_idx >= m_cmd_bufs.size() || image_idx >= m_framebuffers.size()) return;
 
     VkCommandBuffer cmd = m_cmd_bufs[image_idx];
     vkResetCommandBuffer(cmd, 0);
@@ -669,21 +668,16 @@ void VulkanRenderBackend::end_frame() {
     VkSubmitInfo si{};
     si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    si.waitSemaphoreCount = 1;
-    si.pWaitSemaphores = &f.image_available;
+    si.waitSemaphoreCount = 1; si.pWaitSemaphores = &f.image_available;
     si.pWaitDstStageMask = &wait_stage;
-    si.commandBufferCount = 1;
-    si.pCommandBuffers = &cmd;
-    si.signalSemaphoreCount = 1;
-    si.pSignalSemaphores = &f.render_finished;
+    si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
+    si.signalSemaphoreCount = 1; si.pSignalSemaphores = &f.render_finished;
     vkQueueSubmit(m_graphics_queue, 1, &si, f.fence);
 
     VkPresentInfoKHR pi{};
     pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    pi.waitSemaphoreCount = 1;
-    pi.pWaitSemaphores = &f.render_finished;
-    pi.swapchainCount = 1;
-    pi.pSwapchains = &m_swapchain;
+    pi.waitSemaphoreCount = 1; pi.pWaitSemaphores = &f.render_finished;
+    pi.swapchainCount = 1; pi.pSwapchains = &m_swapchain;
     pi.pImageIndices = &image_idx;
     vkQueuePresentKHR(m_present_queue, &pi);
 
@@ -698,6 +692,8 @@ void VulkanRenderBackend::resize(int w, int h) {
 }
 
 void VulkanRenderBackend::record_commands(VkCommandBuffer cmd, uint32_t image_idx) {
+    if (image_idx >= m_framebuffers.size()) return;
+
     VkCommandBufferBeginInfo cbbi{};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     vkBeginCommandBuffer(cmd, &cbbi);
@@ -707,7 +703,7 @@ void VulkanRenderBackend::record_commands(VkCommandBuffer cmd, uint32_t image_id
     VkRenderPassBeginInfo rpbi{};
     rpbi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rpbi.renderPass = m_render_pass;
-    rpbi.framebuffer = VK_NULL_HANDLE;
+    rpbi.framebuffer = m_framebuffers[image_idx];
     rpbi.renderArea = {{0,0}, m_swapchain_extent};
     rpbi.clearValueCount = 1;
     rpbi.pClearValues = &cv;
@@ -737,16 +733,11 @@ void VulkanRenderBackend::poll_events() {
     while ((ev = xcb_poll_for_event(m_conn))) {
         if ((ev->response_type & 0x7f) == XCB_CLIENT_MESSAGE) {
             auto* ce = (xcb_client_message_event_t*)ev;
-            if (ce->data.data32[0] == m_wm_delete) {
-                m_running = false;
-            }
+            if (ce->data.data32[0] == m_wm_delete) m_running = false;
         }
         free(ev);
     }
-
-    if (xcb_connection_has_error(m_conn)) {
-        m_running = false;
-    }
+    if (xcb_connection_has_error(m_conn)) m_running = false;
 }
 
 RenderBackendCapabilities VulkanRenderBackend::capabilities() const {

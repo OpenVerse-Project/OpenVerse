@@ -110,12 +110,12 @@ int main(int argc, char** argv) {
         Renderer renderer;
         auto vk_be = RenderBackendRegistry::instance().create("vulkan");
         if (vk_be) {
-            renderer.set_backend(std::move(vk_be));
-            renderer.initialize(vp_w, vp_h);
-            auto* vk_ptr = static_cast<VulkanRenderBackend*>(renderer.backend());
+        renderer.set_backend(std::move(vk_be));
+        renderer.initialize(vp_w, vp_h);
+        auto* vk_ptr = static_cast<VulkanRenderBackend*>(renderer.backend());
 
-            while (vk_ptr->is_running()) {
-                vk_ptr->poll_events();
+        while (vk_ptr->is_running()) {
+            vk_ptr->poll_events();
                 ctx.reset();
                 ctx.set_viewport({(float)vp_w, (float)vp_h});
                 workspace->on_paint(ctx);

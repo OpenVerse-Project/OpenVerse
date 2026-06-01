@@ -235,7 +235,12 @@ bool Renderer::initialize(int w, int h, void* nw) {
     return m_init;
 }
 
-void Renderer::shutdown() { if (m_backend) m_backend->shutdown(); m_init = false; }
+void Renderer::shutdown() {
+    if (m_backend && m_init) {
+        m_backend->shutdown();
+        m_init = false;
+    }
+}
 void Renderer::begin_frame() { if (m_backend) m_backend->begin_frame(); }
 
 void Renderer::render(const std::vector<RenderDrawCmd>& cmds) {
