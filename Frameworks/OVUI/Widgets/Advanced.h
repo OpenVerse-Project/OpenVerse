@@ -92,10 +92,13 @@ public:
     void set_title(const std::string& t) { m_title = t; }
     const std::string& title() const { return m_title; }
     void set_closable(bool c) { m_closable = c; }
+    bool is_closable() const { return m_closable; }
     void set_resizable(bool r) { m_resizable = r; }
+    bool is_resizable() const { return m_resizable; }
     void set_titlebar_height(float h) { m_titlebar_h = h; }
+    float titlebar_height() const { return m_titlebar_h; }
     std::function<void()> on_close;
-private:
+protected:
     std::string m_title = "Window";
     bool m_closable = true, m_resizable = true;
     bool m_dragging = false;
@@ -113,7 +116,7 @@ public:
     void dismiss();
     std::function<void()> on_dismiss;
     bool is_showing() const { return m_showing; }
-private:
+protected:
     bool m_modal = true;
     bool m_showing = false;
 };

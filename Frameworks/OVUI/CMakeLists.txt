@@ -141,7 +141,18 @@ target_sources(ovui_designer PRIVATE
     Designer/ThemeEditor.cpp
 )
 target_include_directories(ovui_designer PUBLIC ${OVUI_ROOT})
-target_link_libraries(ovui_designer PUBLIC ovui_widgets)
+target_link_libraries(ovui_designer PUBLIC ovui_widgets ovui_styling)
+
+# ============================================================
+# ovui_desktop — compiled, depends on widgets + designer
+# ============================================================
+add_library(ovui_desktop STATIC)
+target_sources(ovui_desktop PRIVATE
+    Desktop/WindowManager.h
+    Desktop/WindowManager.cpp
+)
+target_include_directories(ovui_desktop PUBLIC ${OVUI_ROOT})
+target_link_libraries(ovui_desktop PUBLIC ovui_widgets ovui_designer)
 
 # ============================================================
 # ovui_compiler — compiled, depends on core

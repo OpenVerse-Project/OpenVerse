@@ -71,6 +71,17 @@ target_include_directories(ovui_phase39_tests PRIVATE ${OVUI_ROOT})
 target_compile_features(ovui_phase39_tests PRIVATE cxx_std_20)
 add_test(NAME OVUI_Phase39_Tests COMMAND ovui_phase39_tests)
 
+add_executable(ovui_phase40_tests test_phase40.cpp)
+target_link_libraries(ovui_phase40_tests PRIVATE ovui_desktop ovui_designer ovui_widgets pthread)
+target_include_directories(ovui_phase40_tests PRIVATE ${OVUI_ROOT})
+target_compile_features(ovui_phase40_tests PRIVATE cxx_std_20)
+add_test(NAME OVUI_Phase40_Tests COMMAND ovui_phase40_tests)
+
+add_executable(ovui_desktop_demo ${OVUI_ROOT}/Samples/DesktopDemo/DesktopDemo.cpp)
+target_link_libraries(ovui_desktop_demo PRIVATE ovui_desktop ovui_designer ovui_graphics ovui_widgets pthread stdc++fs)
+target_include_directories(ovui_desktop_demo PRIVATE ${OVUI_ROOT})
+target_compile_features(ovui_desktop_demo PRIVATE cxx_std_20)
+
 if(OVUI_HAS_VULKAN)
     add_executable(ovui_gallery ${OVUI_ROOT}/Samples/Gallery/Gallery.cpp)
     target_link_libraries(ovui_gallery PRIVATE ovui_graphics ovui_widgets ovui_designer pthread)
