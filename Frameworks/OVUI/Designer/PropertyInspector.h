@@ -114,6 +114,8 @@ public:
     void on_paint(PaintContext& ctx) override;
     bool on_event(InputEvent& ev) override;
 
+    void rebuild();
+
     std::function<void(const std::string&, const PropertyDescriptor&)> on_property_changed;
 
 private:
@@ -123,7 +125,7 @@ private:
     float m_row_height = 28;
     bool m_dirty = true;
 
-    void rebuild();
+    void rebuild_internal();
 };
 
 } // namespace ovui

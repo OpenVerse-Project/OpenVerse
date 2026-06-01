@@ -472,7 +472,9 @@ void VulkanRenderBackend::create_buffer(VkDeviceSize size, VkBufferUsageFlags us
     VkBufferCreateInfo bci{};
     bci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bci.size = size; bci.usage = usage; bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    vkCreateBuffer(m_dev, &bci, nullptr, &buf);
+    if (vkCreateBuffer(m_dev, &bci, nullptr, &buf) != VK_SUCCESS) {
+        buf = VK_NULL_HANDLE; mem = VK_NULL_HANDLE; return;
+    }
 
     VkMemoryRequirements mr;
     vkGetBufferMemoryRequirements(m_dev, buf, &mr);
@@ -481,7 +483,10 @@ void VulkanRenderBackend::create_buffer(VkDeviceSize size, VkBufferUsageFlags us
     mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     mai.allocationSize = mr.size;
     mai.memoryTypeIndex = find_memory_type(mr.memoryTypeBits, props);
-    vkAllocateMemory(m_dev, &mai, nullptr, &mem);
+    if (vkAllocateMemory(m_dev, &mai, nullptr, &mem) != VK_SUCCESS) {
+        vkDestroyBuffer(m_dev, buf, nullptr);
+        buf = VK_NULL_HANDLE; mem = VK_NULL_HANDLE; return;
+    }
     vkBindBufferMemory(m_dev, buf, mem, 0);
 }
 
@@ -496,8 +501,10 @@ bool VulkanRenderBackend::create_vertex_buffers() {
                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                       f.ibuf, f.ibuf_mem);
         f.vbuf_capacity = vcap; f.ibuf_capacity = icap;
-        vkMapMemory(m_dev, f.vbuf_mem, 0, vcap, 0, &f.vbuf_ptr);
-        vkMapMemory(m_dev, f.ibuf_mem, 0, icap, 0, &f.ibuf_ptr);
+        if (vkMapMemory(m_dev, f.vbuf_mem, 0, vcap, 0, &f.vbuf_ptr) != VK_SUCCESS)
+            f.vbuf_ptr = nullptr;
+        if (vkMapMemory(m_dev, f.ibuf_mem, 0, icap, 0, &f.ibuf_ptr) != VK_SUCCESS)
+            f.ibuf_ptr = nullptr;
     }
     return true;
 }

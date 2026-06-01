@@ -274,12 +274,12 @@ PropertyInspector::PropertyInspector() {
 
 void PropertyInspector::add_property(const PropertyDescriptor& desc) {
     m_descriptors.push_back(desc);
-    m_dirty = true;
+    rebuild();
 }
 
 void PropertyInspector::add_properties(const std::vector<PropertyDescriptor>& descs) {
     for (auto& d : descs) m_descriptors.push_back(d);
-    m_dirty = true;
+    rebuild();
 }
 
 void PropertyInspector::clear_properties() {
@@ -291,7 +291,9 @@ void PropertyInspector::clear_properties() {
 
 void PropertyInspector::invalidate() { m_dirty = true; }
 
-void PropertyInspector::rebuild() {
+void PropertyInspector::rebuild() { rebuild_internal(); }
+
+void PropertyInspector::rebuild_internal() {
     m_editors.clear();
     remove_all_children();
     if (m_descriptors.empty()) { m_dirty = false; return; }
@@ -333,12 +335,15 @@ void PropertyInspector::refresh_all() {
 }
 
 void PropertyInspector::on_paint(PaintContext& ctx) {
-    if (m_dirty) rebuild();
-    Container::on_paint(ctx);
+    for (auto& child : children()) {
+        if (child->is_visible()) child->on_paint(ctx);
+    }
 }
 
 bool PropertyInspector::on_event(InputEvent& ev) {
-    if (m_dirty) rebuild();
+    for (auto& child : children()) {
+        if (child->is_visible() && child->on_event(ev)) return true;
+    }
     return Container::on_event(ev);
 }
 

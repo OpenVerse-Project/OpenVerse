@@ -58,17 +58,17 @@ ThemeEditor::ThemeEditor() {
 void ThemeEditor::set_palette(const ThemePalette& p) {
     m_palette = p;
     m_style_engine.rebuild_default_theme(m_palette.to_vec());
-    m_dirty = true;
+    rebuild_ui();
 }
 
 void ThemeEditor::apply_theme() {
     m_style_engine.rebuild_default_theme(m_palette.to_vec());
-    build_preview_panel();
+    rebuild_ui();
 }
 
 void ThemeEditor::set_preview_widget_type(const std::string& type) {
     m_preview_type = type;
-    m_dirty = true;
+    rebuild_ui();
 }
 
 void ThemeEditor::rebuild_preview() {
@@ -156,7 +156,6 @@ int ThemeEditor::hit_swatch(Point p) const {
 }
 
 void ThemeEditor::on_paint(PaintContext& ctx) {
-    if (m_dirty) rebuild_ui();
     Rect f = frame();
 
     ctx.draw_rect(f, Color{0.1f, 0.1f, 0.14f, 1}, 4);

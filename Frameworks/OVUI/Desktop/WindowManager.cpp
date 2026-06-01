@@ -536,7 +536,6 @@ void Workspace::layout_floating() {
 }
 
 void Workspace::on_paint(PaintContext& ctx) {
-    if (!m_wm) m_wm = std::make_shared<WindowManager>();
     Rect f = frame();
     ctx.draw_rect(f, Color{0.08f, 0.08f, 0.12f, 1}, 0);
 
@@ -549,7 +548,7 @@ void Workspace::on_paint(PaintContext& ctx) {
 }
 
 bool Workspace::on_event(InputEvent& ev) {
-    if (!m_wm) m_wm = std::make_shared<WindowManager>();
+    if (!m_wm) return false;
     if (m_wm->dispatch_event(ev)) return true;
 
     for (auto it = children().rbegin(); it != children().rend(); ++it) {
@@ -559,7 +558,7 @@ bool Workspace::on_event(InputEvent& ev) {
 }
 
 void Workspace::save_layout(const std::string& path) {
-    if (!m_wm) m_wm = std::make_shared<WindowManager>();
+    if (!m_wm) return;
     auto data = serialize_window_layout(m_wm->windows());
     std::ofstream f(path);
     if (f) f << data;
