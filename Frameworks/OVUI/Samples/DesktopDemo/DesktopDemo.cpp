@@ -5,7 +5,6 @@
 #include <Desktop/WindowManager.h>
 #include <Designer/PropertyInspector.h>
 #include <Designer/AnimationTimeline.h>
-#include <Designer/ThemeEditor.h>
 #include <Graphics/RenderBackend.h>
 
 #ifdef OVUI_HAS_VULKAN
