@@ -1,8 +1,10 @@
-// OVUI Desktop Demo — Window Manager showcase
+// OVUI Desktop Demo — Window Manager showcase with real UI content
 #include <Core/Types.h>
 #include <Widgets/Widgets.h>
 #include <Widgets/Advanced.h>
 #include <Desktop/WindowManager.h>
+#include <Designer/PropertyInspector.h>
+#include <Designer/AnimationTimeline.h>
 #include <Designer/ThemeEditor.h>
 #include <Graphics/RenderBackend.h>
 
@@ -17,6 +19,224 @@
 #include <cstring>
 
 using namespace ovui;
+
+namespace {
+
+void populate_inspector(std::shared_ptr<ToolWindow> win) {
+    auto pi = std::make_shared<PropertyInspector>();
+    pi->set_frame({0, 24, 300, 600});
+    pi->set_label_width(90);
+    pi->set_row_height(26);
+
+    float pos_x = 100, pos_y = 50, scale = 1.0f;
+    bool visible = true;
+    int mode = 0;
+    std::string name = "Cube";
+
+    pi->add_property(PropertyDescriptor::make_category("Transform"));
+    pi->add_property(PropertyDescriptor::make_vec2("Position",
+        [&](){return pos_x;}, [&](float v){pos_x=v;},
+        [&](){return pos_y;}, [&](float v){pos_y=v;}));
+    pi->add_property(PropertyDescriptor::make_float("Scale",
+        [&](){return scale;}, [&](float v){scale=v;}, 0.01f, 10, 0.1f));
+
+    pi->add_property(PropertyDescriptor::make_category("Appearance"));
+    pi->add_property(PropertyDescriptor::make_string("Name",
+        [&](){return name;}, [&](const std::string& v){name=v;}));
+    pi->add_property(PropertyDescriptor::make_bool("Visible",
+        [&](){return visible;}, [&](bool v){visible=v;}));
+    pi->add_property(PropertyDescriptor::make_enum("Render Mode",
+        [&](){return mode;}, [&](int v){mode=v;},
+        {"Wireframe", "Solid", "Textured"}));
+
+    win->add_child(pi);
+}
+
+void populate_console(std::shared_ptr<ToolWindow> win) {
+    auto container = std::make_shared<Container>();
+    container->layout_node().direction = FlexDirection::Column;
+    container->layout_node().gap = 2;
+    container->set_frame({0, 24, 1300, 170});
+
+    auto input_row = std::make_shared<Container>();
+    input_row->layout_node().direction = FlexDirection::Row;
+    input_row->layout_node().gap = 4;
+    input_row->set_frame({0, 0, 1300, 28});
+
+    auto text_input = std::make_shared<TextInput>();
+    text_input->set_frame({0, 0, 1200, 28});
+    text_input->set_placeholder("> Enter command...");
+    input_row->add_child(text_input);
+
+    auto send_btn = std::make_shared<Button>();
+    send_btn->set_text("Send");
+    send_btn->set_frame({0, 0, 80, 28});
+    input_row->add_child(send_btn);
+
+    container->add_child(input_row);
+
+    const char* log_lines[] = {
+        "[10:32:01] Engine initialized",
+        "[10:32:02] Loading assets...",
+        "[10:32:05] 142 assets loaded (1.2s)",
+        "[10:32:05] Scene 'MainScene' opened",
+        "[10:32:06] Renderer: Vulkan 1.2 ready",
+        "[10:32:07] Physics engine: ready",
+        "[10:32:08] Audio system: ALSA initialized",
+        "[10:32:10] Network: lobby created",
+        "[10:32:15] Warning: texture 'brick' missing mipmaps",
+        "[10:32:20] Script engine: Lua 5.4 VM loaded",
+        "[10:32:30] > hello_ovui()",
+    };
+    for (auto* line : log_lines) {
+        auto txt = std::make_shared<Text>();
+        txt->set_text(line);
+        txt->set_frame({4, 0, 1300, 18});
+        container->add_child(txt);
+    }
+
+    win->add_child(container);
+}
+
+void populate_project(std::shared_ptr<DockWindow> win) {
+    auto panel = std::make_shared<Container>();
+    panel->layout_node().direction = FlexDirection::Column;
+    panel->set_frame({0, 24, 250, 900});
+
+    auto header = std::make_shared<Container>();
+    header->layout_node().direction = FlexDirection::Row;
+    header->layout_node().gap = 4;
+    header->set_frame({4, 4, 240, 28});
+
+    auto search = std::make_shared<TextInput>();
+    search->set_frame({0, 0, 160, 24});
+    search->set_placeholder("Search files...");
+    header->add_child(search);
+
+    auto new_folder_btn = std::make_shared<Button>();
+    new_folder_btn->set_text("+");
+    new_folder_btn->set_frame({0, 0, 32, 24});
+    header->add_child(new_folder_btn);
+
+    panel->add_child(header);
+
+    const char* files[] = {
+        "  src/", "    main.cpp", "    engine.cpp", "    renderer.cpp",
+        "  assets/", "    textures/", "      brick.png", "      grass.png",
+        "      skybox.hdr", "    models/", "      cube.obj", "      sphere.obj",
+        "    shaders/", "      ui_rect.vert", "      ui_rect.frag",
+        "  scenes/", "    MainScene.ovscene",
+        "  scripts/", "    player.lua", "    enemy.lua",
+    };
+    for (auto* f : files) {
+        auto txt = std::make_shared<Text>();
+        txt->set_text(f);
+        txt->set_frame({8, 0, 230, 18});
+        panel->add_child(txt);
+    }
+
+    win->add_child(panel);
+}
+
+void populate_scene(std::shared_ptr<EnhancedWindow> win) {
+    auto viewport = std::make_shared<Container>();
+    viewport->set_frame({0, 30, 700, 460});
+
+    viewport->add_child(std::make_shared<Box>());
+
+    auto toolbar = std::make_shared<Container>();
+    toolbar->layout_node().direction = FlexDirection::Row;
+    toolbar->layout_node().gap = 4;
+    toolbar->set_frame({4, 0, 700, 28});
+
+    auto select_btn = std::make_shared<Button>();
+    select_btn->set_text("Select");
+    select_btn->set_frame({0, 0, 60, 24});
+
+    auto move_btn = std::make_shared<Button>();
+    move_btn->set_text("Move");
+    move_btn->set_frame({0, 0, 60, 24});
+
+    auto rotate_btn = std::make_shared<Button>();
+    rotate_btn->set_text("Rotate");
+    rotate_btn->set_frame({0, 0, 60, 24});
+
+    auto scale_btn = std::make_shared<Button>();
+    scale_btn->set_text("Scale");
+    scale_btn->set_frame({0, 0, 60, 24});
+
+    toolbar->add_child(select_btn);
+    toolbar->add_child(move_btn);
+    toolbar->add_child(rotate_btn);
+    toolbar->add_child(scale_btn);
+
+    win->add_child(toolbar);
+    win->add_child(viewport);
+}
+
+void populate_properties(std::shared_ptr<EnhancedWindow> win) {
+    auto pi = std::make_shared<PropertyInspector>();
+    pi->set_frame({0, 30, 700, 220});
+    pi->set_label_width(100);
+    pi->set_row_height(28);
+
+    float fov = 60, near_plane = 0.1f, far_plane = 1000;
+    bool shadows = true, ssao = true, bloom = false;
+    int aa = 2;
+
+    pi->add_property(PropertyDescriptor::make_category("Camera"));
+    pi->add_property(PropertyDescriptor::make_float("FOV",
+        [&](){return fov;}, [&](float v){fov=v;}, 1, 179));
+    pi->add_property(PropertyDescriptor::make_float("Near",
+        [&](){return near_plane;}, [&](float v){near_plane=v;}, 0.001f, 100));
+    pi->add_property(PropertyDescriptor::make_float("Far",
+        [&](){return far_plane;}, [&](float v){far_plane=v;}, 1, 10000));
+
+    pi->add_property(PropertyDescriptor::make_category("Rendering"));
+    pi->add_property(PropertyDescriptor::make_bool("Shadows",
+        [&](){return shadows;}, [&](bool v){shadows=v;}));
+    pi->add_property(PropertyDescriptor::make_bool("SSAO",
+        [&](){return ssao;}, [&](bool v){ssao=v;}));
+    pi->add_property(PropertyDescriptor::make_bool("Bloom",
+        [&](){return bloom;}, [&](bool v){bloom=v;}));
+    pi->add_property(PropertyDescriptor::make_enum("Anti-aliasing",
+        [&](){return aa;}, [&](int v){aa=v;},
+        {"Off", "FXAA", "MSAA 2x", "MSAA 4x", "TAA"}));
+
+    win->add_child(pi);
+}
+
+void populate_animation(std::shared_ptr<ToolWindow> win) {
+    auto te = std::make_shared<TimelineEditor>();
+    te->set_frame({0, 24, 400, 170});
+
+    auto tl = std::make_shared<Timeline>();
+    KeyframeTrack tk_pos;
+    tk_pos.property = "Position.x";
+    tk_pos.keyframes.push_back({0.0f, 0.0f, EasingType::EaseInOut});
+    tk_pos.keyframes.push_back({0.3f, 50.0f, EasingType::EaseInOut});
+    tk_pos.keyframes.push_back({0.7f, 100.0f, EasingType::EaseInOut});
+    tk_pos.keyframes.push_back({1.0f, 150.0f, EasingType::EaseOut});
+    tl->add_track(tk_pos);
+
+    KeyframeTrack tk_rot;
+    tk_rot.property = "Rotation";
+    tk_rot.keyframes.push_back({0.0f, 0.0f, EasingType::Linear});
+    tk_rot.keyframes.push_back({0.5f, 180.0f, EasingType::EaseInOut});
+    tk_rot.keyframes.push_back({1.0f, 360.0f, EasingType::Linear});
+    tl->add_track(tk_rot);
+
+    KeyframeTrack tk_scale;
+    tk_scale.property = "Scale";
+    tk_scale.keyframes.push_back({0.0f, 1.0f, EasingType::EaseInOut});
+    tk_scale.keyframes.push_back({1.0f, 1.5f, EasingType::EaseOut});
+    tl->add_track(tk_scale);
+
+    te->set_timeline(tl);
+    win->add_child(te);
+}
+
+} // anonymous namespace
 
 int main(int argc, char** argv) {
     printf("\nOVUI Desktop Demo\n=================\n");
@@ -34,62 +254,20 @@ int main(int argc, char** argv) {
 
     auto wm = workspace->window_manager();
 
-    auto inspector = std::make_shared<ToolWindow>();
-    inspector->set_title("Inspector");
-    inspector->set_frame({vp_w - 300.0f, 28.0f, 300.0f, (float)vp_h - 28.0f});
-    workspace->add_floating_window(inspector);
-
-    auto console = std::make_shared<ToolWindow>();
-    console->set_title("Console");
-    console->set_frame({0.0f, (float)vp_h - 200.0f, (float)vp_w - 300.0f, 200.0f});
-    workspace->add_floating_window(console);
-
-    auto project = std::make_shared<DockWindow>();
-    project->set_title("Project");
-    project->set_frame({0, 28, 250, (float)vp_h - 28});
-    workspace->add_docked_window(project, DockWindow::DockSide::Left, 0.18f);
-
-    auto hierarchy = std::make_shared<DockWindow>();
-    hierarchy->set_title("Hierarchy");
-    hierarchy->set_frame({0, 0, 250, (float)vp_h - 228});
-
-    auto scene = std::make_shared<EnhancedWindow>();
-    scene->set_title("Scene View");
-    scene->set_frame({280, 60, 700, 500});
-    wm->add_window(scene);
-    workspace->add_child(scene);
-
-    auto properties = std::make_shared<EnhancedWindow>();
-    properties->set_title("Properties");
-    properties->set_frame({280, 580, 700, 250});
-    wm->add_window(properties);
-    workspace->add_child(properties);
-
-    auto animation = std::make_shared<ToolWindow>();
-    animation->set_title("Animation");
-    animation->set_frame({0, (float)vp_h - 400, 400, 200});
-    workspace->add_floating_window(animation);
-
-    auto dialog = std::make_shared<ModalDialog>();
-    dialog->set_title("Settings");
-    dialog->set_frame({vp_w * 0.25f, vp_h * 0.25f, vp_w * 0.5f, vp_h * 0.5f});
-
     auto menu_bar = std::make_shared<MenuBar>();
     menu_bar->set_frame({0, 0, (float)vp_w, 28});
     menu_bar->add_menu("File", {
-        {"New", "Ctrl+N", [](){ printf("New\n"); }},
-        {"Open", "Ctrl+O", [](){ printf("Open\n"); }},
-        {"Save", "Ctrl+S", [](){ printf("Save\n"); }},
+        {"New", "Ctrl+N", [](){}},
+        {"Open", "Ctrl+O", [](){}},
+        {"Save", "Ctrl+S", [](){}},
         {"", "", nullptr, true},
-        {"Exit", "Alt+F4", [](){ printf("Exit\n"); }},
+        {"Exit", "Alt+F4", [](){}},
     });
     menu_bar->add_menu("Edit", {
         {"Undo", "Ctrl+Z", [](){}},
         {"Redo", "Ctrl+Y", [](){}},
         {"", "", nullptr, true},
-        {"Preferences", "", [&](){
-            dialog->show(workspace, {(float)vp_w, (float)vp_h});
-        }},
+        {"Preferences", "", [](){}},
     });
     menu_bar->add_menu("View", {
         {"Fullscreen", "F11", [](){}},
@@ -101,7 +279,43 @@ int main(int argc, char** argv) {
     });
     workspace->add_child(menu_bar);
 
-    PaintContext ctx;
+    auto inspector = std::make_shared<ToolWindow>();
+    inspector->set_title("Inspector");
+    inspector->set_frame({vp_w - 300.0f, 28.0f, 300.0f, 700.0f});
+    populate_inspector(inspector);
+    workspace->add_floating_window(inspector);
+
+    auto console = std::make_shared<ToolWindow>();
+    console->set_title("Console");
+    console->set_frame({0.0f, (float)vp_h - 200.0f, (float)vp_w - 300.0f, 200.0f});
+    populate_console(console);
+    workspace->add_floating_window(console);
+
+    auto project = std::make_shared<DockWindow>();
+    project->set_title("Project");
+    project->set_frame({0, 28, 260, (float)vp_h - 28});
+    populate_project(project);
+    workspace->add_docked_window(project, DockWindow::DockSide::Left, 0.18f);
+
+    auto scene = std::make_shared<EnhancedWindow>();
+    scene->set_title("Scene View");
+    scene->set_frame({280, 28, 700, 500});
+    populate_scene(scene);
+    wm->add_window(scene);
+    workspace->add_child(scene);
+
+    auto properties = std::make_shared<EnhancedWindow>();
+    properties->set_title("Properties");
+    properties->set_frame({280, 540, 700, 220});
+    populate_properties(properties);
+    wm->add_window(properties);
+    workspace->add_child(properties);
+
+    auto animation = std::make_shared<ToolWindow>();
+    animation->set_title("Animation");
+    animation->set_frame({0, (float)vp_h - 400.0f, 400.0f, 200.0f});
+    populate_animation(animation);
+    workspace->add_floating_window(animation);
 
     if (use_vulkan) {
 #ifdef OVUI_HAS_VULKAN
@@ -110,12 +324,13 @@ int main(int argc, char** argv) {
         Renderer renderer;
         auto vk_be = RenderBackendRegistry::instance().create("vulkan");
         if (vk_be) {
-        renderer.set_backend(std::move(vk_be));
-        renderer.initialize(vp_w, vp_h);
-        auto* vk_ptr = static_cast<VulkanRenderBackend*>(renderer.backend());
+            renderer.set_backend(std::move(vk_be));
+            renderer.initialize(vp_w, vp_h);
+            auto* vk_ptr = static_cast<VulkanRenderBackend*>(renderer.backend());
 
-        while (vk_ptr->is_running()) {
-            vk_ptr->poll_events();
+            PaintContext ctx;
+            while (vk_ptr->is_running()) {
+                vk_ptr->poll_events();
                 ctx.reset();
                 ctx.set_viewport({(float)vp_w, (float)vp_h});
                 workspace->on_paint(ctx);
@@ -138,26 +353,13 @@ int main(int argc, char** argv) {
     }
 
     printf("Desktop workspace created with %d windows\n", wm->window_count());
-    printf("  Inspector (%s)\n", inspector->title().c_str());
-    printf("  Console (%s)\n", console->title().c_str());
-    printf("  Project (docked)\n");
-    printf("  Scene View\n");
-    printf("  Properties\n");
-    printf("  Animation\n");
-    printf("  MenuBar (File, Edit, View, Help)\n");
-    printf("  Modal dialog ready\n");
-
-    workspace->save_layout("/tmp/ovui_layout.txt");
-    printf("\nLayout saved to /tmp/ovui_layout.txt\n");
-    printf("Layout restored: %s\n",
-           workspace->load_layout("/tmp/ovui_layout.txt") ? "yes" : "no");
-
-    wm->set_active_window(scene);
-    auto active = wm->active_window();
-    printf("Active window: %s\n", active ? active->title().c_str() : "none");
-
-    wm->bring_to_front(inspector);
-    printf("Inspector brought to front\n");
+    printf("  Inspector   — Position, Scale, Name, Visible, Render Mode\n");
+    printf("  Console     — Log output + command input\n");
+    printf("  Project     — File browser\n");
+    printf("  Scene View  — Toolbar (Select/Move/Rotate/Scale)\n");
+    printf("  Properties  — Camera (FOV, Near, Far), Rendering flags\n");
+    printf("  Animation   — Timeline: Position, Rotation, Scale tracks\n");
+    printf("  MenuBar     — File, Edit, View, Help\n");
 
     printf("\nDemo complete. Use --vulkan for interactive rendering.\n");
     return 0;

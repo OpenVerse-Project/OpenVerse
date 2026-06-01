@@ -78,7 +78,7 @@ target_compile_features(ovui_phase40_tests PRIVATE cxx_std_20)
 add_test(NAME OVUI_Phase40_Tests COMMAND ovui_phase40_tests)
 
 add_executable(ovui_desktop_demo ${OVUI_ROOT}/Samples/DesktopDemo/DesktopDemo.cpp)
-target_link_libraries(ovui_desktop_demo PRIVATE ovui_desktop ovui_designer ovui_graphics ovui_widgets pthread stdc++fs)
+target_link_libraries(ovui_desktop_demo PRIVATE ovui_desktop ovui_designer ovui_animation ovui_graphics ovui_widgets pthread stdc++fs)
 target_include_directories(ovui_desktop_demo PRIVATE ${OVUI_ROOT})
 target_compile_features(ovui_desktop_demo PRIVATE cxx_std_20)
 
