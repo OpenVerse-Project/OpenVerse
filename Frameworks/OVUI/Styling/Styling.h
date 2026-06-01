@@ -69,7 +69,15 @@ public:
     StyleEngine();
 
     void load_sheet(std::shared_ptr<StyleSheet> sheet);
+    void replace_sheet(size_t i, std::shared_ptr<StyleSheet> sheet);
     void set_default_theme();
+    void clear_theme();
+    void add_rule(const std::string& widget_type, WidgetState state,
+                  std::initializer_list<StyleValue> vals);
+    void add_rule_class(const std::string& widget_type, const std::string& klass,
+                        WidgetState state, std::initializer_list<StyleValue> vals);
+    size_t sheet_count() const { return m_sheets.size(); }
+    void rebuild_default_theme(const std::vector<Color>& palette);
 
     std::vector<StyleValue> resolve(const std::string& widget_type,
                                      const std::string& class_name,

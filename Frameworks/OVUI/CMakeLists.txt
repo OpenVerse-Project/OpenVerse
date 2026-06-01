@@ -137,6 +137,8 @@ target_sources(ovui_designer PRIVATE
     Designer/PropertyInspector.cpp
     Designer/AnimationTimeline.h
     Designer/AnimationTimeline.cpp
+    Designer/ThemeEditor.h
+    Designer/ThemeEditor.cpp
 )
 target_include_directories(ovui_designer PUBLIC ${OVUI_ROOT})
 target_link_libraries(ovui_designer PUBLIC ovui_widgets)

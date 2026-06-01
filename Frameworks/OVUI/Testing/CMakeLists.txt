@@ -65,6 +65,12 @@ target_include_directories(ovui_phase38_tests PRIVATE ${OVUI_ROOT})
 target_compile_features(ovui_phase38_tests PRIVATE cxx_std_20)
 add_test(NAME OVUI_Phase38_Tests COMMAND ovui_phase38_tests)
 
+add_executable(ovui_phase39_tests test_phase39.cpp)
+target_link_libraries(ovui_phase39_tests PRIVATE ovui_designer ovui_widgets pthread)
+target_include_directories(ovui_phase39_tests PRIVATE ${OVUI_ROOT})
+target_compile_features(ovui_phase39_tests PRIVATE cxx_std_20)
+add_test(NAME OVUI_Phase39_Tests COMMAND ovui_phase39_tests)
+
 if(OVUI_HAS_VULKAN)
     add_executable(ovui_gallery ${OVUI_ROOT}/Samples/Gallery/Gallery.cpp)
     target_link_libraries(ovui_gallery PRIVATE ovui_graphics ovui_widgets ovui_designer pthread)
