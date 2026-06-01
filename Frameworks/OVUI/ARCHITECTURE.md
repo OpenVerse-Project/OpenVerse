@@ -696,7 +696,7 @@ Independent tools:
 | Phase | Name | Deliverables | Status |
 |-------|------|-------------|--------|
 | OVUI-36 | Design Surface | Visual canvas, drag-drop, resize, align, grid snap, box select, z-order, widget factory | ✅ |
-| OVUI-37 | Property Inspector | Reflection-based property editor, auto-generated | 🔲 |
+| OVUI-37 | Property Inspector | Reflection-based property editor, auto-generated | ✅ |
 | OVUI-38 | Animation Editor | Timeline editor, curve editor, preview | 🔲 |
 | OVUI-39 | Theme Editor | Visual theme/style editor, live preview | 🔲 |
 | OVUI-40 | Profiler | Frame profiler, layout debugger, memory inspector | 🔲 |
@@ -836,4 +836,4 @@ endif()
 
 ---
 
-*OVUI Framework — 50-phase roadmap. Rendering: Vulkan (GPU) + CPU (software) backends with 14 rendering tests. Current: OVUI-36 Design Surface complete (49 OVUI tests, 0 failures). Next: OVUI-37 Property Inspector.*
+*OVUI Framework — 50-phase roadmap. Rendering: Vulkan (GPU) + CPU (software) backends with 14 rendering tests. Current: OVUI-37 Property Inspector complete (71 OVUI tests, 0 failures). Next: OVUI-38 Animation Editor.*

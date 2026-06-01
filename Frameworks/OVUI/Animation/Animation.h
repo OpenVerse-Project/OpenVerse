@@ -52,6 +52,10 @@ public:
     Timeline();
 
     void add_track(const KeyframeTrack& track);
+    KeyframeTrack& track_at(size_t i) { return m_tracks[i]; }
+    const std::vector<KeyframeTrack>& tracks() const { return m_tracks; }
+    std::vector<KeyframeTrack>& tracks() { return m_tracks; }
+    size_t track_count() const { return m_tracks.size(); }
     void clear();
 
     void set_loop(bool loop) { m_loop = loop; }

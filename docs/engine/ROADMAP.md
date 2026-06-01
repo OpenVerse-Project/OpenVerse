@@ -1,6 +1,6 @@
 # OpenVerse Engine — Roadmap & Implementation Status
 
-> **Last Updated**: June 1, 2026 — Vulkan Render Backend + Rendering Tests complete
+> **Last Updated**: June 1, 2026 — OVUI-37 Property Inspector complete
 > **Engine Root**: `/home/dataline/openverse/`
 > **Build**: `cmake -B build-ov -S Source -G Ninja && cmake --build build-ov`
 
@@ -192,4 +192,4 @@ g++ -std=c++20 -O2 -I Source/Core/.. -I Source \
 
 ---
 
-*OpenVerse Engine — 28 phases, 169 tests (120 engine + 49 OVUI), 14 libraries, 6 examples, Vulkan + CPU rendering.*
+*OpenVerse Engine — 28 phases, 191 tests (120 engine + 71 OVUI), 14 libraries, 6 examples, Vulkan + CPU rendering.*

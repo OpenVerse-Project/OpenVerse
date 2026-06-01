@@ -133,6 +133,10 @@ add_library(ovui_designer STATIC)
 target_sources(ovui_designer PRIVATE
     Designer/DesignSurface.h
     Designer/DesignSurface.cpp
+    Designer/PropertyInspector.h
+    Designer/PropertyInspector.cpp
+    Designer/AnimationTimeline.h
+    Designer/AnimationTimeline.cpp
 )
 target_include_directories(ovui_designer PUBLIC ${OVUI_ROOT})
 target_link_libraries(ovui_designer PUBLIC ovui_widgets)
