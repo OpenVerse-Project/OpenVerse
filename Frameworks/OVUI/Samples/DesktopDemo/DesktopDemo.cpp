@@ -254,7 +254,6 @@ int main(int argc, char** argv) {
     auto wm = workspace->window_manager();
 
     auto menu_bar = std::make_shared<MenuBar>();
-    menu_bar->set_frame({0, 0, (float)vp_w, 28});
     menu_bar->add_menu("File", {
         {"New", "Ctrl+N", [](){}},
         {"Open", "Ctrl+O", [](){}},
@@ -265,13 +264,9 @@ int main(int argc, char** argv) {
     menu_bar->add_menu("Edit", {
         {"Undo", "Ctrl+Z", [](){}},
         {"Redo", "Ctrl+Y", [](){}},
-        {"", "", nullptr, true},
-        {"Preferences", "", [](){}},
     });
     menu_bar->add_menu("View", {
         {"Fullscreen", "F11", [](){}},
-        {"Zoom In", "Ctrl++", [](){}},
-        {"Zoom Out", "Ctrl+-", [](){}},
     });
     menu_bar->add_menu("Help", {
         {"About", "", [](){ printf("OVUI Desktop Demo v1.0\n"); }},
@@ -280,41 +275,54 @@ int main(int argc, char** argv) {
 
     auto inspector = std::make_shared<ToolWindow>();
     inspector->set_title("Inspector");
-    inspector->set_frame({vp_w - 300.0f, 28.0f, 300.0f, 700.0f});
     populate_inspector(inspector);
     workspace->add_floating_window(inspector);
 
     auto console = std::make_shared<ToolWindow>();
     console->set_title("Console");
-    console->set_frame({0.0f, (float)vp_h - 200.0f, (float)vp_w - 300.0f, 200.0f});
     populate_console(console);
     workspace->add_floating_window(console);
 
     auto project = std::make_shared<DockWindow>();
     project->set_title("Project");
-    project->set_frame({0, 28, 260, (float)vp_h - 28});
     populate_project(project);
     workspace->add_docked_window(project, DockWindow::DockSide::Left, 0.18f);
 
     auto scene = std::make_shared<EnhancedWindow>();
     scene->set_title("Scene View");
-    scene->set_frame({280, 28, 700, 500});
     populate_scene(scene);
     wm->add_window(scene);
     workspace->add_child(scene);
 
     auto properties = std::make_shared<EnhancedWindow>();
     properties->set_title("Properties");
-    properties->set_frame({280, 540, 700, 220});
     populate_properties(properties);
     wm->add_window(properties);
     workspace->add_child(properties);
 
     auto animation = std::make_shared<ToolWindow>();
     animation->set_title("Animation");
-    animation->set_frame({0, (float)vp_h - 400.0f, 400.0f, 200.0f});
     populate_animation(animation);
     workspace->add_floating_window(animation);
+
+    auto layout_fn = [&](float w, float h) {
+        float mh = 28, proj_w = w * 0.18f, insp_w = 300;
+        menu_bar->set_frame({0, 0, w, mh});
+        project->set_frame({0, mh, proj_w, h - mh});
+        inspector->set_frame({w - insp_w, mh, insp_w, 700});
+        scene->set_frame({proj_w + 2, mh, w - proj_w - insp_w - 4, (h - mh - 200) * 0.55f});
+        properties->set_frame({proj_w + 2, mh + (h - mh - 200) * 0.55f + 2, w - proj_w - insp_w - 4, (h - mh - 200) * 0.45f - 2});
+        console->set_frame({0, h - 200, w - insp_w, 200});
+        animation->set_frame({0, h - 400, 400, 200});
+    };
+
+    workspace->on_layout_changed = [&]() {
+        float w = workspace->frame().width;
+        float h = workspace->frame().height;
+        layout_fn(w, h);
+    };
+    layout_fn((float)vp_w, (float)vp_h);
+    workspace->relayout();
 
     if (use_vulkan) {
 #ifdef OVUI_HAS_VULKAN
@@ -337,6 +345,7 @@ int main(int argc, char** argv) {
                     vp_w = new_w;
                     vp_h = new_h;
                     workspace->set_frame({0, 0, (float)vp_w, (float)vp_h});
+                    workspace->relayout();
                 }
 
                 ctx.reset();

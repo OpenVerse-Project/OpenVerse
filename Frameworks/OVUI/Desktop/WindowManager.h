@@ -202,6 +202,8 @@ public:
 
     void set_menubar_height(float h) { m_menubar_h = h; }
 
+    void relayout();
+
     std::function<void()> on_layout_changed;
 
 private:

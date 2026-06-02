@@ -77,11 +77,17 @@ int main(int argc, char** argv) {
     auto last_fps = std::chrono::steady_clock::now();
     int frame_count = 0;
 
+    int vw = 1280, vh = 720;
+
     while (vulkan_be->is_running()) {
         vulkan_be->poll_events();
 
+        int nw = vulkan_be->framebuffer_width();
+        int nh = vulkan_be->framebuffer_height();
+        if (nw != vw || nh != vh) { vw = nw; vh = nh; }
+
         ctx.reset();
-        ctx.set_viewport({1280, 720});
+        ctx.set_viewport({(float)vw, (float)vh});
 
         root->on_paint(ctx);
         btn->on_paint(ctx);

@@ -539,12 +539,15 @@ void Workspace::on_paint(PaintContext& ctx) {
     Rect f = frame();
     ctx.draw_rect(f, Color{0.08f, 0.08f, 0.12f, 1}, 0);
 
-    layout_docked();
-    layout_floating();
-
     for (auto& child : children()) {
         if (child->is_visible()) child->on_paint(ctx);
     }
+}
+
+void Workspace::relayout() {
+    layout_docked();
+    layout_floating();
+    if (on_layout_changed) on_layout_changed();
 }
 
 bool Workspace::on_event(InputEvent& ev) {
