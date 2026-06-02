@@ -330,6 +330,15 @@ int main(int argc, char** argv) {
             PaintContext ctx;
             while (vk_ptr->is_running()) {
                 vk_ptr->poll_events();
+
+                int new_w = vk_ptr->framebuffer_width();
+                int new_h = vk_ptr->framebuffer_height();
+                if (new_w != vp_w || new_h != vp_h) {
+                    vp_w = new_w;
+                    vp_h = new_h;
+                    workspace->set_frame({0, 0, (float)vp_w, (float)vp_h});
+                }
+
                 ctx.reset();
                 ctx.set_viewport({(float)vp_w, (float)vp_h});
                 workspace->on_paint(ctx);

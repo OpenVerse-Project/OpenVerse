@@ -35,6 +35,8 @@ public:
 
     bool is_running() const { return m_running; }
     void poll_events();
+    int framebuffer_width() const { return m_w; }
+    int framebuffer_height() const { return m_h; }
 
 private:
     VulkanBackendConfig m_config;
