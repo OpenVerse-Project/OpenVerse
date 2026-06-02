@@ -758,16 +758,14 @@ void VulkanRenderBackend::record_commands(VkCommandBuffer cmd, uint32_t image_id
 }
 
 void VulkanRenderBackend::poll_events() {
-    bool resized = false;
     xcb_generic_event_t* ev;
     while ((ev = xcb_poll_for_event(m_conn))) {
         uint8_t type = ev->response_type & 0x7f;
         if (type == XCB_CONFIGURE_NOTIFY) {
             auto* cn = (xcb_configure_notify_event_t*)ev;
-            if (cn->width != m_w || cn->height != m_h) {
+            if (cn->width > 0 && cn->height > 0) {
                 m_w = cn->width;
                 m_h = cn->height;
-                resized = true;
             }
         } else if (type == XCB_CLIENT_MESSAGE) {
             auto* ce = (xcb_client_message_event_t*)ev;
@@ -775,7 +773,6 @@ void VulkanRenderBackend::poll_events() {
         }
         free(ev);
     }
-    if (resized) recreate_swapchain();
     if (xcb_connection_has_error(m_conn)) m_running = false;
 }
 

@@ -310,10 +310,38 @@ int main(int argc, char** argv) {
         menu_bar->set_frame({0, 0, w, mh});
         project->set_frame({0, mh, proj_w, h - mh});
         inspector->set_frame({w - insp_w, mh, insp_w, 700});
-        scene->set_frame({proj_w + 2, mh, w - proj_w - insp_w - 4, (h - mh - 200) * 0.55f});
-        properties->set_frame({proj_w + 2, mh + (h - mh - 200) * 0.55f + 2, w - proj_w - insp_w - 4, (h - mh - 200) * 0.45f - 2});
+        float scene_w = w - proj_w - insp_w - 4;
+        float scene_h = (h - mh - 200) * 0.55f;
+        scene->set_frame({proj_w + 2, mh, scene_w, scene_h});
+        properties->set_frame({proj_w + 2, mh + scene_h + 2, scene_w, (h - mh - 200) * 0.45f - 2});
         console->set_frame({0, h - 200, w - insp_w, 200});
         animation->set_frame({0, h - 400, 400, 200});
+
+        for (auto& child : scene->children()) {
+            auto* c = dynamic_cast<Container*>(child.get());
+            if (c && c->children().size() >= 4) {
+                child->set_frame({4, 0, scene_w - 8, 28});
+            } else {
+                child->set_frame({0, 30, scene_w, scene_h - 34});
+            }
+        }
+        for (auto& child : properties->children()) {
+            child->set_frame({0, 30, scene_w, (h - mh - 200) * 0.45f - 30});
+        }
+        for (auto& child : inspector->children()) {
+            child->set_frame({0, 24, insp_w, 676});
+        }
+        for (auto& child : project->children()) {
+            child->set_frame({0, 24, proj_w, h - mh - 24});
+        }
+        for (auto& child : console->children()) {
+            Rect cf = child->frame();
+            if (cf.height <= 30) child->set_frame({4, 24, w - insp_w - 8, cf.height});
+            else child->set_frame({4, 52, w - insp_w - 8, cf.height});
+        }
+        for (auto& child : animation->children()) {
+            child->set_frame({0, 24, 400, 170});
+        }
     };
 
     workspace->on_layout_changed = [&]() {
