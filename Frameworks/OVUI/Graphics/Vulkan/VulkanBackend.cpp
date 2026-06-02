@@ -234,8 +234,11 @@ bool VulkanRenderBackend::create_swapchain() {
     m_swapchain_format = formats[0].format;
 
     m_swapchain_extent = caps.currentExtent;
-    if (m_swapchain_extent.width == UINT32_MAX)
+    if (m_swapchain_extent.width == UINT32_MAX || m_swapchain_extent.width == 0 || m_swapchain_extent.height == 0)
         m_swapchain_extent = {(uint32_t)m_w, (uint32_t)m_h};
+
+    if (m_swapchain_extent.width == 0 || m_swapchain_extent.height == 0)
+        return false;
 
     uint32_t img_count = std::max(caps.minImageCount, 2u);
     if (caps.maxImageCount > 0)
@@ -317,9 +320,18 @@ void VulkanRenderBackend::cleanup_swapchain() {
 void VulkanRenderBackend::recreate_swapchain() {
     if (!m_dev) return;
     vkDeviceWaitIdle(m_dev);
+
+    if (!m_cmd_bufs.empty()) {
+        vkFreeCommandBuffers(m_dev, m_cmd_pool, (uint32_t)m_cmd_bufs.size(), m_cmd_bufs.data());
+        m_cmd_bufs.clear();
+    }
+
     cleanup_swapchain();
-    create_swapchain();
+
+    if (!create_swapchain()) return;
+
     create_framebuffers();
+    allocate_command_buffers();
 }
 
 bool VulkanRenderBackend::create_render_pass() {
@@ -661,10 +673,18 @@ void VulkanRenderBackend::execute_commands(const std::vector<RenderDrawCmd>& cmd
 void VulkanRenderBackend::end_frame() {
     auto& f = m_frames[m_frame_idx];
 
+    if (m_swapchain_extent.width == 0 || m_swapchain_extent.height == 0)
+        return;
+
     uint32_t image_idx = 0;
     VkResult res = vkAcquireNextImageKHR(m_dev, m_swapchain, UINT64_MAX, f.image_available, VK_NULL_HANDLE, &image_idx);
-    if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR) { recreate_swapchain(); return; }
-    if (res != VK_SUCCESS) return;
+    if (res == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreate_swapchain();
+        vkQueueSubmit(m_graphics_queue, 0, nullptr, f.fence);
+        m_frame_idx = (m_frame_idx + 1) % MAX_FRAMES;
+        return;
+    }
+    if (res != VK_SUCCESS && res != VK_SUBOPTIMAL_KHR) return;
 
     if (image_idx >= m_cmd_bufs.size() || image_idx >= m_framebuffers.size()) return;
 
@@ -686,7 +706,9 @@ void VulkanRenderBackend::end_frame() {
     pi.waitSemaphoreCount = 1; pi.pWaitSemaphores = &f.render_finished;
     pi.swapchainCount = 1; pi.pSwapchains = &m_swapchain;
     pi.pImageIndices = &image_idx;
-    vkQueuePresentKHR(m_present_queue, &pi);
+    res = vkQueuePresentKHR(m_present_queue, &pi);
+    if (res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR)
+        recreate_swapchain();
 
     m_frame_idx = (m_frame_idx + 1) % MAX_FRAMES;
 }
@@ -736,14 +758,24 @@ void VulkanRenderBackend::record_commands(VkCommandBuffer cmd, uint32_t image_id
 }
 
 void VulkanRenderBackend::poll_events() {
+    bool resized = false;
     xcb_generic_event_t* ev;
     while ((ev = xcb_poll_for_event(m_conn))) {
-        if ((ev->response_type & 0x7f) == XCB_CLIENT_MESSAGE) {
+        uint8_t type = ev->response_type & 0x7f;
+        if (type == XCB_CONFIGURE_NOTIFY) {
+            auto* cn = (xcb_configure_notify_event_t*)ev;
+            if (cn->width != m_w || cn->height != m_h) {
+                m_w = cn->width;
+                m_h = cn->height;
+                resized = true;
+            }
+        } else if (type == XCB_CLIENT_MESSAGE) {
             auto* ce = (xcb_client_message_event_t*)ev;
             if (ce->data.data32[0] == m_wm_delete) m_running = false;
         }
         free(ev);
     }
+    if (resized) recreate_swapchain();
     if (xcb_connection_has_error(m_conn)) m_running = false;
 }
 
